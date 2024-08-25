@@ -7,41 +7,57 @@
 
 import SwiftUI
 import RealityKit
-import RealityKitContent
 
 struct ContentView: View {
-
-    @State var enlarge = false
-
+    
+    @State var mainEntity: Entity?
+    @State var realityURL: URL?
+    
     var body: some View {
-        VStack {
+        HStack {
             RealityView { content in
-                // Add the initial RealityKit content
-                if let scene = try? await Entity(named: "Scene", in: realityKitContentBundle) {
-                    content.add(scene)
-                }
-            } update: { content in
-                // Update the RealityKit content when SwiftUI state changes
-                if let scene = content.entities.first {
-                    let uniformScale: Float = enlarge ? 1.4 : 1.0
-                    scene.transform.scale = [uniformScale, uniformScale, uniformScale]
+                if let entity = try? await Entity(named: "toy_drummer_idle") {
+                    mainEntity = entity
+                    mainEntity?.scale = [0.02, 0.02, 0.02]
+                    mainEntity?.position.z-=0.3
+                    mainEntity?.position.x-=0.1
+                    content.add(mainEntity!)
                 }
             }
-            .gesture(TapGesture().targetedToAnyEntity().onEnded { _ in
-                enlarge.toggle()
-            })
-
-            VStack {
-                Button {
-                    enlarge.toggle()
-                } label: {
-                    Text(enlarge ? "Reduce RealityView Content" : "Enlarge RealityView Content")
+            if realityURL != nil {
+                Model3D(url: realityURL!) {phase in
+                    if let model = phase.model {
+                        model
+                            .resizable()
+                            .aspectRatio(contentMode: .fit)
+                    } else if phase.error != nil {
+                        VStack {
+                            Image(systemName: "x.circle.fill")
+                                .font(.extraLargeTitle2)
+                            Text("Failed to load.")
+                        }
+                    } else {
+                        ProgressView()
+                    }
                 }
-                .animation(.none, value: 0)
-                .fontWeight(.semibold)
+            }
+            
+            Button(action: {
+                let fileManager = FileManager.default
+                let urls = fileManager.urls(for: .documentDirectory, in: .userDomainMask)
+                if let documentsURL = urls.first {
+                    let fileURL = documentsURL.appendingPathComponent("entity.reality")
+                    Task {
+                        try await mainEntity?.write(to: fileURL)
+                        print("File saved at: \(fileURL.path)")
+                        realityURL = fileURL
+                    }
+                }
+            }){
+                Text("Save")
+                    .font(.extraLargeTitle)
             }
             .padding()
-            .glassBackgroundEffect()
         }
     }
 }
